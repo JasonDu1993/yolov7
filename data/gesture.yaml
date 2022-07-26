@@ -1,0 +1,16 @@
+# COCO 2017 dataset http://cocodataset.org
+
+# download command/URL (optional)
+download:
+
+# train and val data as 1) directory: path/images/, 2) file: path/images.txt, or 3) list: [path1/images/, path2/images/]
+#train: ./coco/train2017.txt  # 118287 images
+train: /data/gesture/merge/merge.ges30_cloudwalk.ges30_imgs_1015_1017.hagrid.jsc220713.box.txt  # 118287 images
+val: /data/gesture/jiashicang/resize/txtv2/test.jsc220713.gt.txt  # 5000 images
+test: /data/gesture/jiashicang/resize/txtv2/test.jsc220713.gt.txt  # 20288 of 40670 images, submit to https://competitions.codalab.org/competitions/20794
+
+# number of classes
+nc: 1
+
+# class names
+names: [ 'hand' ]

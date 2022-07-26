@@ -11,6 +11,7 @@ from itertools import repeat
 from multiprocessing.pool import ThreadPool
 from pathlib import Path
 from threading import Thread
+from collections import defaultdict
 
 import cv2
 import numpy as np
@@ -22,9 +23,10 @@ from tqdm import tqdm
 
 import pickle
 from copy import deepcopy
-#from pycocotools import mask as maskUtils
+# from pycocotools import mask as maskUtils
 from torchvision.utils import save_image
 from torchvision.ops import roi_pool, roi_align, ps_roi_pool, ps_roi_align
+from collections import defaultdict
 
 from utils.general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy, segment2box, segments2boxes, \
     resample_segments, clean_str
@@ -137,8 +139,19 @@ class LoadImages:  # for inference
         else:
             raise Exception(f'ERROR: {p} does not exist')
 
-        images = [x for x in files if x.split('.')[-1].lower() in img_formats]
-        videos = [x for x in files if x.split('.')[-1].lower() in vid_formats]
+        if files[0].endswith(".txt"):
+            images = defaultdict(list)
+            for src_path in files:
+                with open(src_path, "r", encoding="utf-8") as fr:
+                    for idx, line in enumerate(fr.readlines()):
+                        line_sp = line.strip().split(" ")
+                        img_path = line_sp[0]
+                        images[img_path].append(line)  # 同一张图片可能有多个框，每个框存储一行，但是第一个图片路径是一样的，这里只需要获取所有图片路径即可
+            images = list(images.keys())
+            videos = []
+        else:
+            images = [x for x in files if x.split('.')[-1].lower() in img_formats]
+            videos = [x for x in files if x.split('.')[-1].lower() in vid_formats]
         ni, nv = len(images), len(videos)
 
         self.img_size = img_size
@@ -185,7 +198,7 @@ class LoadImages:  # for inference
             self.count += 1
             img0 = cv2.imread(path)  # BGR
             assert img0 is not None, 'Image Not Found ' + path
-            #print(f'image {self.count}/{self.nf} {path}: ', end='')
+            # print(f'image {self.count}/{self.nf} {path}: ', end='')
 
         # Padded resize
         img = letterbox(img0, self.img_size, stride=self.stride)[0]
@@ -361,8 +374,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         self.mosaic = self.augment and not self.rect  # load 4 images at a time into a mosaic (only during training)
         self.mosaic_border = [-img_size // 2, -img_size // 2]
         self.stride = stride
-        self.path = path        
-        #self.albumentations = Albumentations() if augment else None
+        self.path = path
+        # self.albumentations = Albumentations() if augment else None
 
         try:
             f = []  # image files
@@ -379,18 +392,44 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                         # f += [p.parent / x.lstrip(os.sep) for x in t]  # local to global path (pathlib)
                 else:
                     raise Exception(f'{prefix}{p} does not exist')
-            self.img_files = sorted([x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in img_formats])
+            # self.img_files = sorted([x.replace('/', os.sep) for x in f if x.split('.')[-1].lower() in img_formats])
+            cache = {}
+            for line in f:
+                line_sp = line.strip().split(" ")
+                img_path = line_sp[0]
+                if img_path not in cache:
+                    cache[img_path] = [line_sp]
+                else:
+                    cache[img_path].append(line_sp)
+            self.img_files = list(cache.keys())
+            for img_path in self.img_files:
+                box_data = []
+                shape_data = None
+                for line_sp in cache[img_path]:
+                    label = int(line_sp[1])
+                    img_w, img_h = int(line_sp[2]), int(line_sp[3])
+                    box = list(map(float, line_sp[4:4 + 4]))
+                    x, y, w, h = box  # 左上角和宽高
+                    cx = (x + w / 2) / img_w
+                    cy = (y + h / 2) / img_h
+                    norm_w = w / img_w
+                    norm_h = h / img_h
+                    box_data.append([label, cx, cy, norm_w, norm_h])
+                    shape_data = (img_w, img_h)
+                seg_data = []
+                cache[img_path] = [np.array(box_data), shape_data, seg_data]
+
             # self.img_files = sorted([x for x in f if x.suffix[1:].lower() in img_formats])  # pathlib
             assert self.img_files, f'{prefix}No images found'
         except Exception as e:
             raise Exception(f'{prefix}Error loading data from {path}: {e}\nSee {help_url}')
-
+        """
         # Check cache
         self.label_files = img2label_paths(self.img_files)  # labels
         cache_path = (p if p.is_file() else Path(self.label_files[0]).parent).with_suffix('.cache')  # cached labels
         if cache_path.is_file():
             cache, exists = torch.load(cache_path), True  # load
-            #if cache['hash'] != get_hash(self.label_files + self.img_files) or 'version' not in cache:  # changed
+            # if cache['hash'] != get_hash(self.label_files + self.img_files) or 'version' not in cache:  # changed
             #    cache, exists = self.cache_labels(cache_path, prefix), False  # re-cache
         else:
             cache, exists = self.cache_labels(cache_path, prefix), False  # cache
@@ -405,11 +444,12 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
         # Read cache
         cache.pop('hash')  # remove hash
         cache.pop('version')  # remove version
+        """
         labels, shapes, self.segments = zip(*cache.values())
         self.labels = list(labels)
         self.shapes = np.array(shapes, dtype=np.float64)
         self.img_files = list(cache.keys())  # update
-        self.label_files = img2label_paths(cache.keys())  # update
+        # self.label_files = img2label_paths(cache.keys())  # update
         if single_cls:
             for x in self.labels:
                 x[:, 0] = 0
@@ -428,7 +468,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             ar = s[:, 1] / s[:, 0]  # aspect ratio
             irect = ar.argsort()
             self.img_files = [self.img_files[i] for i in irect]
-            self.label_files = [self.label_files[i] for i in irect]
+            # self.label_files = [self.label_files[i] for i in irect]
             self.labels = [self.labels[i] for i in irect]
             self.shapes = s[irect]  # wh
             ar = ar[irect]
@@ -576,9 +616,8 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                                                  scale=hyp['scale'],
                                                  shear=hyp['shear'],
                                                  perspective=hyp['perspective'])
-            
-            
-            #img, labels = self.albumentations(img, labels)
+
+            # img, labels = self.albumentations(img, labels)
 
             # Augment colorspace
             augment_hsv(img, hgain=hyp['hsv_h'], sgain=hyp['hsv_s'], vgain=hyp['hsv_v'])
@@ -586,15 +625,16 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
             # Apply cutouts
             # if random.random() < 0.9:
             #     labels = cutout(img, labels)
-            
+
             if random.random() < hyp['paste_in']:
-                sample_labels, sample_images, sample_masks = [], [], [] 
+                sample_labels, sample_images, sample_masks = [], [], []
                 while len(sample_labels) < 30:
-                    sample_labels_, sample_images_, sample_masks_ = load_samples(self, random.randint(0, len(self.labels) - 1))
+                    sample_labels_, sample_images_, sample_masks_ = load_samples(self, random.randint(0, len(
+                        self.labels) - 1))
                     sample_labels += sample_labels_
                     sample_images += sample_images_
                     sample_masks += sample_masks_
-                    #print(len(sample_labels))
+                    # print(len(sample_labels))
                     if len(sample_labels) == 0:
                         break
                 labels = pastein(img, labels, sample_labels, sample_images, sample_masks)
@@ -750,8 +790,8 @@ def load_mosaic(self, index):
     # img4, labels4 = replicate(img4, labels4)  # replicate
 
     # Augment
-    #img4, labels4, segments4 = remove_background(img4, labels4, segments4)
-    #sample_segments(img4, labels4, segments4, probability=self.hyp['copy_paste'])
+    # img4, labels4, segments4 = remove_background(img4, labels4, segments4)
+    # sample_segments(img4, labels4, segments4, probability=self.hyp['copy_paste'])
     img4, labels4, segments4 = copy_paste(img4, labels4, segments4, probability=self.hyp['copy_paste'])
     img4, labels4 = random_perspective(img4, labels4, segments4,
                                        degrees=self.hyp['degrees'],
@@ -827,7 +867,7 @@ def load_mosaic9(self, index):
     # img9, labels9 = replicate(img9, labels9)  # replicate
 
     # Augment
-    #img9, labels9, segments9 = remove_background(img9, labels9, segments9)
+    # img9, labels9, segments9 = remove_background(img9, labels9, segments9)
     img9, labels9, segments9 = copy_paste(img9, labels9, segments9, probability=self.hyp['copy_paste'])
     img9, labels9 = random_perspective(img9, labels9, segments9,
                                        degrees=self.hyp['degrees'],
@@ -885,7 +925,7 @@ def load_samples(self, index):
     # img4, labels4 = replicate(img4, labels4)  # replicate
 
     # Augment
-    #img4, labels4, segments4 = remove_background(img4, labels4, segments4)
+    # img4, labels4, segments4 = remove_background(img4, labels4, segments4)
     sample_labels, sample_images, sample_masks = sample_segments(img4, labels4, segments4, probability=0.5)
 
     return sample_labels, sample_images, sample_masks
@@ -925,7 +965,7 @@ def remove_background(img, labels, segments):
         cv2.drawContours(im_new, [segments[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
 
         result = cv2.bitwise_and(src1=img, src2=im_new)
-        
+
         i = result > 0  # pixels to replace
         img_new[i] = result[i]  # cv2.imwrite('debug.jpg', img)  # debug
 
@@ -942,24 +982,25 @@ def sample_segments(img, labels, segments, probability=0.5):
         h, w, c = img.shape  # height, width, channels
         for j in random.sample(range(n), k=round(probability * n)):
             l, s = labels[j], segments[j]
-            box = l[1].astype(int).clip(0,w-1), l[2].astype(int).clip(0,h-1), l[3].astype(int).clip(0,w-1), l[4].astype(int).clip(0,h-1) 
-            
-            #print(box)
+            box = l[1].astype(int).clip(0, w - 1), l[2].astype(int).clip(0, h - 1), l[3].astype(int).clip(0, w - 1), l[
+                4].astype(int).clip(0, h - 1)
+
+            # print(box)
             if (box[2] <= box[0]) or (box[3] <= box[1]):
                 continue
-            
+
             sample_labels.append(l[0])
-            
+
             mask = np.zeros(img.shape, np.uint8)
-            
+
             cv2.drawContours(mask, [segments[j].astype(np.int32)], -1, (255, 255, 255), cv2.FILLED)
-            sample_masks.append(mask[box[1]:box[3],box[0]:box[2],:])
-            
+            sample_masks.append(mask[box[1]:box[3], box[0]:box[2], :])
+
             result = cv2.bitwise_and(src1=img, src2=mask)
             i = result > 0  # pixels to replace
             mask[i] = result[i]  # cv2.imwrite('debug.jpg', img)  # debug
-            #print(box)
-            sample_images.append(mask[box[1]:box[3],box[0]:box[2],:])
+            # print(box)
+            sample_images.append(mask[box[1]:box[3], box[0]:box[2], :])
 
     return sample_labels, sample_images, sample_masks
 
@@ -1128,7 +1169,7 @@ def bbox_ioa(box1, box2):
 
     # Intersection over box2 area
     return inter_area / box2_area
-    
+
 
 def cutout(image, labels):
     # Applies image cutout augmentation https://arxiv.org/abs/1708.04552
@@ -1156,7 +1197,7 @@ def cutout(image, labels):
             labels = labels[ioa < 0.60]  # remove >60% obscured labels
 
     return labels
-    
+
 
 def pastein(image, labels, sample_labels, sample_images, sample_masks):
     # Applies image cutout augmentation https://arxiv.org/abs/1708.04552
@@ -1174,46 +1215,48 @@ def pastein(image, labels, sample_labels, sample_images, sample_masks):
         xmin = max(0, random.randint(0, w) - mask_w // 2)
         ymin = max(0, random.randint(0, h) - mask_h // 2)
         xmax = min(w, xmin + mask_w)
-        ymax = min(h, ymin + mask_h)   
-        
+        ymax = min(h, ymin + mask_h)
+
         box = np.array([xmin, ymin, xmax, ymax], dtype=np.float32)
         if len(labels):
             ioa = bbox_ioa(box, labels[:, 1:5])  # intersection over area     
         else:
             ioa = np.zeros(1)
-        
-        if (ioa < 0.30).all() and len(sample_labels) and (xmax > xmin+20) and (ymax > ymin+20):  # allow 30% obscuration of existing labels
-            sel_ind = random.randint(0, len(sample_labels)-1)
-            #print(len(sample_labels))
-            #print(sel_ind)
-            #print((xmax-xmin, ymax-ymin))
-            #print(image[ymin:ymax, xmin:xmax].shape)
-            #print([[sample_labels[sel_ind], *box]])
-            #print(labels.shape)
+
+        if (ioa < 0.30).all() and len(sample_labels) and (xmax > xmin + 20) and (
+                ymax > ymin + 20):  # allow 30% obscuration of existing labels
+            sel_ind = random.randint(0, len(sample_labels) - 1)
+            # print(len(sample_labels))
+            # print(sel_ind)
+            # print((xmax-xmin, ymax-ymin))
+            # print(image[ymin:ymax, xmin:xmax].shape)
+            # print([[sample_labels[sel_ind], *box]])
+            # print(labels.shape)
             hs, ws, cs = sample_images[sel_ind].shape
-            r_scale = min((ymax-ymin)/hs, (xmax-xmin)/ws)
-            r_w = int(ws*r_scale)
-            r_h = int(hs*r_scale)
-            
+            r_scale = min((ymax - ymin) / hs, (xmax - xmin) / ws)
+            r_w = int(ws * r_scale)
+            r_h = int(hs * r_scale)
+
             if (r_w > 10) and (r_h > 10):
                 r_mask = cv2.resize(sample_masks[sel_ind], (r_w, r_h))
                 r_image = cv2.resize(sample_images[sel_ind], (r_w, r_h))
-                temp_crop = image[ymin:ymin+r_h, xmin:xmin+r_w]
+                temp_crop = image[ymin:ymin + r_h, xmin:xmin + r_w]
                 m_ind = r_mask > 0
                 if m_ind.astype(np.int).sum() > 60:
                     temp_crop[m_ind] = r_image[m_ind]
-                    #print(sample_labels[sel_ind])
-                    #print(sample_images[sel_ind].shape)
-                    #print(temp_crop.shape)
-                    box = np.array([xmin, ymin, xmin+r_w, ymin+r_h], dtype=np.float32)
+                    # print(sample_labels[sel_ind])
+                    # print(sample_images[sel_ind].shape)
+                    # print(temp_crop.shape)
+                    box = np.array([xmin, ymin, xmin + r_w, ymin + r_h], dtype=np.float32)
                     if len(labels):
                         labels = np.concatenate((labels, [[sample_labels[sel_ind], *box]]), 0)
                     else:
                         labels = np.array([[sample_labels[sel_ind], *box]])
-                              
-                    image[ymin:ymin+r_h, xmin:xmin+r_w] = temp_crop
+
+                    image[ymin:ymin + r_h, xmin:xmin + r_w] = temp_crop
 
     return labels
+
 
 class Albumentations:
     # YOLOv5 Albumentations class (optional, only used if package is installed)
@@ -1228,10 +1271,10 @@ class Albumentations:
             A.Blur(p=0.01),
             A.MedianBlur(p=0.01),
             A.ToGray(p=0.01),
-            A.ImageCompression(quality_lower=75, p=0.01),],
+            A.ImageCompression(quality_lower=75, p=0.01), ],
             bbox_params=A.BboxParams(format='pascal_voc', label_fields=['class_labels']))
 
-            #logging.info(colorstr('albumentations: ') + ', '.join(f'{x}' for x in self.transform.transforms if x.p))
+        # logging.info(colorstr('albumentations: ') + ', '.join(f'{x}' for x in self.transform.transforms if x.p))
 
     def __call__(self, im, labels, p=1.0):
         if self.transform and random.random() < p:
@@ -1311,10 +1354,10 @@ def autosplit(path='../coco', weights=(0.9, 0.1, 0.0), annotated_only=False):
         if not annotated_only or Path(img2label_paths([str(img)])[0]).exists():  # check label
             with open(path / txt[i], 'a') as f:
                 f.write(str(img) + '\n')  # add image to txt file
-    
-    
+
+
 def load_segmentations(self, index):
     key = '/work/handsomejw66/coco17/' + self.img_files[index]
-    #print(key)
+    # print(key)
     # /work/handsomejw66/coco17/
     return self.segs[key]
