@@ -398,7 +398,6 @@ def train(hyp, opt, device, tb_writer=None):
                                                   save_dir.glob('train*.jpg') if x.exists()]})
 
             # end batch ------------------------------------------------------------------------------------------------
-            break
         # end epoch ----------------------------------------------------------------------------------------------------
 
         # Scheduler
@@ -550,7 +549,7 @@ if __name__ == '__main__':
     parser.add_argument('--project', default='/zhoudu/checkpoints/gesture/yolov7', help='save to project/name')
     parser.add_argument('--entity', default=None, help='W&B entity')
     parser.add_argument('--name', default='exp_hand', help='save to project/name')
-    parser.add_argument('--exist-ok', default=True, help='existing project/name ok, do not increment')
+    parser.add_argument('--exist-ok', default=False, help='existing project/name ok, do not increment')
     parser.add_argument('--quad', action='store_true', help='quad dataloader')
     parser.add_argument('--linear-lr', action='store_true', help='linear LR')
     parser.add_argument('--label-smoothing', type=float, default=0.0, help='Label smoothing epsilon')
@@ -562,7 +561,7 @@ if __name__ == '__main__':
     opt = parser.parse_args()
     if opt.debug:
         opt.workers = 0
-        opt.data = "data/gesture_debug.yaml"
+        # opt.data = "data/gesture_debug.yaml"
         opt.batch_size = 8
 
     # Set DDP variables
@@ -589,7 +588,7 @@ if __name__ == '__main__':
         assert len(opt.cfg) or len(opt.weights), 'either --cfg or --weights must be specified'
         opt.img_size.extend([opt.img_size[-1]] * (2 - len(opt.img_size)))  # extend to 2 sizes (train, test)
         opt.name = 'evolve' if opt.evolve else opt.name
-        opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve)  # increment run
+        opt.save_dir = increment_path(Path(opt.project) / opt.name, exist_ok=opt.exist_ok | opt.evolve, sep="_")  # increment run
 
     # DDP mode
     opt.total_batch_size = opt.batch_size

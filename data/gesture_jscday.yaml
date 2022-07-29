@@ -9,6 +9,7 @@ download:
 train: ["/data/gesture/common/resize/txt/train.ges30_cloudwalk.ges30_imgs_1015_1017.map.box.txt",
         "/data/gesture/hagrid/resize/txt/train.hagrid.gt.txt",
         "/data/gesture/jiashicang/resize/txtv2/train.jsc220713.noneg.gt.txt",
+        "/dataset/dataset/ssd/gesture/jiashicang/c9/jsc220718_day.map.box.txt",
 ]  # 282550 images
 val: /data/gesture/jiashicang/resize/txtv2/test.jsc220713.noneg.gt.txt  # 5000 images
 test: /data/gesture/jiashicang/resize/txtv2/test.jsc220713.noneg.gt.txt  # 20288 of 40670 images, submit to https://competitions.codalab.org/competitions/20794

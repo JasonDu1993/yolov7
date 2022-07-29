@@ -13,7 +13,8 @@ from utils.torch_utils import select_device, is_parallel
 ## YOLOv7 reparameterization
 device = select_device('0', batch_size=1)
 # model trained by cfg/training/*.yaml
-weight_path = "/zhoudu/checkpoints/gesture/yolov7/yolov7_416_anchor/weights/best.pt"
+weight_path = "/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/best.pt"
+modef_config = "cfg/deploy/yolov7_416.yaml"
 save_path_sp = os.path.split(weight_path)
 save_path = os.path.join(save_path_sp[0], "deploy." + save_path_sp[1])
 print("src_path:{}".format(weight_path))
@@ -24,7 +25,7 @@ ckpt = torch.load(weight_path, map_location=device)
 # reparameterized model in cfg/deploy/*.yaml
 
 nc = 1
-model = Model('cfg/deploy/yolov7.yaml', ch=3, nc=nc).to(device)
+model = Model(modef_config, ch=3, nc=nc).to(device)
 print("model.state_dict()", model.state_dict().keys())
 # copy intersect weights
 state_dict = ckpt['model'].float().state_dict()

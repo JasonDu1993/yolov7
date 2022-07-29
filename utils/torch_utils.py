@@ -189,13 +189,13 @@ def fuse_conv_and_bn(conv, bn):
                           bias=True).requires_grad_(False).to(conv.weight.device)
 
     # prepare filters
-    w_conv = conv.weight.clone().view(conv.out_channels, -1)
-    w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))
+    w_conv = conv.weight.clone().view(conv.out_channels, -1)  # shape [out_channels, in_channels * kernel_size[0] *kernel_size[1]
+    w_bn = torch.diag(bn.weight.div(torch.sqrt(bn.eps + bn.running_var)))  # bn.weight: [out_channels,] bn.running_var: [out_channels,] w_bn: [out_channels, out_channels]
     fusedconv.weight.copy_(torch.mm(w_bn, w_conv).view(fusedconv.weight.shape))
 
     # prepare spatial bias
-    b_conv = torch.zeros(conv.weight.size(0), device=conv.weight.device) if conv.bias is None else conv.bias
-    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))
+    b_conv = torch.zeros(conv.weight.size(0), device=conv.weight.device) if conv.bias is None else conv.bias  # b_conv: [out_channels,]
+    b_bn = bn.bias - bn.weight.mul(bn.running_mean).div(torch.sqrt(bn.running_var + bn.eps))  # bn.bias: [out_channels,] bn.running_mean: [out_channels,] b_bn: [out_channels,]
     fusedconv.bias.copy_(torch.mm(w_bn, b_conv.reshape(-1, 1)).reshape(-1) + b_bn)
 
     return fusedconv

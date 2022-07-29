@@ -175,7 +175,7 @@ class LoadImages:  # for inference
         if self.count == self.nf:
             raise StopIteration
         path = self.files[self.count]
-
+        # path = "demo.jpg"
         if self.video_flag[self.count]:
             # Read video
             self.mode = 'video'
@@ -201,7 +201,7 @@ class LoadImages:  # for inference
             # print(f'image {self.count}/{self.nf} {path}: ', end='')
 
         # Padded resize
-        img = letterbox(img0, self.img_size, stride=self.stride)[0]
+        img = letterbox(img0, self.img_size, stride=self.stride, auto=False)[0]
 
         # Convert
         img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
@@ -402,6 +402,7 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 else:
                     cache[img_path].append(line_sp)
             self.img_files = list(cache.keys())
+            print("img num: {}".format(len(self.img_files)))
             for img_path in self.img_files:
                 box_data = []
                 shape_data = None
