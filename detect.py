@@ -177,7 +177,7 @@ if __name__ == '__main__':
                         default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/deploy.best.pt',
                         help='model.pt path(s)')
     parser.add_argument('--source', type=str,
-                        default='/dataset/dataset/ssd/gesture/jiashicang/resize/txt/test.jsc220713.gt.txt',
+                        default='/dataset/dataset/ssd/gesture/leapGestRecog/txt/leapGestRecog.txt',
                         help='source')  # file/folder, 0 for webcam
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
@@ -185,7 +185,9 @@ if __name__ == '__main__':
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', default=False, help='display results')
     parser.add_argument('--save-txt', default=True, help='save results to *.txt')
-    parser.add_argument('--save-txt-path', default="cfg/deploy/result.txt", help='save results to one file')
+    parser.add_argument('--save-txt-path',
+                        default="/dataset/dataset/ssd/gesture/leapGestRecog/txt/pred.leapGestRecog.txt",
+                        help='save results to one file')
     parser.add_argument('--contain-wh', default=True, help='save the image width and height in --save-txt labels')
     parser.add_argument('--save-conf', default=True, help='save confidences in --save-txt labels')
     parser.add_argument('--nosave', action='store_true', help='do not save images/videos')
