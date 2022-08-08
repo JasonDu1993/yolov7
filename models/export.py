@@ -1,6 +1,8 @@
 import argparse
 import sys
 import time
+import numpy as np
+import cv2
 
 sys.path.append('./')  # to run '$ python *.py' files in subdirectories
 
@@ -12,15 +14,36 @@ from models.experimental import attempt_load
 from utils.activations import Hardswish, SiLU
 from utils.general import set_logging, check_img_size
 from utils.torch_utils import select_device
+from utils.datasets import letterbox
+
+
+def img_preprocess(image, input_shape):
+    # image = Image.open(img_path)
+    print("....input")
+    img_h, img_w, _ = image.shape
+    c, h, w = input_shape  # [c, h, w]
+    img = letterbox(image, (h, w), stride=32, auto=False)[0]
+    img = img[:, :, ::-1].transpose(2, 0, 1)  # BGR to RGB, to 3x416x416
+    img = np.ascontiguousarray(img)
+    img = img / 255
+    # img = np.stack([img, img])
+    img = img[None, ...]
+    print("img:", img.flatten()[:20])
+    print("img end:", img.flatten()[-20:])
+    return img
+
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str,
-                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_anchor_noneg/weights/deploy.best.pt',
+                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/deploy.best.pt',
+                        help='weights path')
+    parser.add_argument('--save_onnx_path', type=str,
+                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/gesture_det.fordpn.onnx',
                         help='weights path')
     parser.add_argument('--img-size', nargs='+', type=int, default=[416, 416], help='image size')  # height, width
     parser.add_argument('--batch-size', type=int, default=1, help='batch size')
-    parser.add_argument('--dynamic', default=True, help='dynamic ONNX axes')
+    parser.add_argument('--dynamic', default=False, help='dynamic ONNX axes')
     parser.add_argument('--grid', action='store_true', help='export Detect() layer grid')
     parser.add_argument('--device', default='cpu', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     opt = parser.parse_args()
@@ -39,7 +62,12 @@ if __name__ == '__main__':
     opt.img_size = [check_img_size(x, gs) for x in opt.img_size]  # verify img_size are gs-multiples
 
     # Input
-    img = torch.zeros(opt.batch_size, 3, *opt.img_size).to(device)  # image size(1,3,320,192) iDetection
+    # img = torch.zeros(opt.batch_size, 3, *opt.img_size).to(device)  # image size(1,3,320,192) iDetection
+    img = cv2.imread("imgs/demo.jpg")
+    img = img_preprocess(img, (3, 416, 416))
+    img = torch.from_numpy(img).to(device)
+    half = device.type != 'cpu'  # half precision only supported on CUDA
+    img = img.half() if half else img.float()  # uint8 to fp16/32
 
     # Update model
     for k, m in model.named_modules():
@@ -55,21 +83,22 @@ if __name__ == '__main__':
     y = model(img)  # dry run
 
     # TorchScript export
-    try:
-        print('\nStarting TorchScript export with torch %s...' % torch.__version__)
-        f = opt.weights.replace('.pt', '.torchscript.pt')  # filename
-        ts = torch.jit.trace(model, img, strict=False)
-        ts.save(f)
-        print('TorchScript export success, saved as %s' % f)
-    except Exception as e:
-        print('TorchScript export failure: %s' % e)
+    # try:
+    #     print('\nStarting TorchScript export with torch %s...' % torch.__version__)
+    #     f = opt.weights.replace('.pt', '.torchscript.pt')  # filename
+    #     ts = torch.jit.trace(model, img, strict=False)
+    #     ts.save(f)
+    #     print('TorchScript export success, saved as %s' % f)
+    # except Exception as e:
+    #     print('TorchScript export failure: %s' % e)
 
     # ONNX export
     try:
         import onnx
 
         print('\nStarting ONNX export with onnx %s...' % onnx.__version__)
-        f = opt.weights.replace('.pt', '.onnx')  # filename
+        # f = opt.weights.replace('.pt', '.fordpn.onnx')  # filename
+        f = opt.save_onnx_path
         torch.onnx.export(model, img, f, verbose=False, opset_version=12, input_names=['data'],
                           output_names=['classes', 'boxes'] if y is None else ['output0', "output1", "output2"],
                           dynamic_axes={'data': {0: 'batch'},  # size(1,3,640,640)

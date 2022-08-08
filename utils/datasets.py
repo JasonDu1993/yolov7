@@ -175,7 +175,7 @@ class LoadImages:  # for inference
         if self.count == self.nf:
             raise StopIteration
         path = self.files[self.count]
-        # path = "demo.jpg"
+        path = "imgs/demo.jpg"
         if self.video_flag[self.count]:
             # Read video
             self.mode = 'video'
@@ -1027,7 +1027,7 @@ def letterbox(img, new_shape=(640, 640), color=(114, 114, 114), auto=True, scale
     # Resize and pad image while meeting stride-multiple constraints
     shape = img.shape[:2]  # current shape [height, width]
     if isinstance(new_shape, int):
-        new_shape = (new_shape, new_shape)
+        new_shape = (new_shape, new_shape)  # (h, w)
 
     # Scale ratio (new / old)
     r = min(new_shape[0] / shape[0], new_shape[1] / shape[1])

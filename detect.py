@@ -65,8 +65,8 @@ def detect(save_img=False):
     colors = [[random.randint(0, 255) for _ in range(3)] for _ in names]
 
     # Run inference
-    if device.type != 'cpu':
-        model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
+    # if device.type != 'cpu':
+    #     model(torch.zeros(1, 3, imgsz, imgsz).to(device).type_as(next(model.parameters())))  # run once
     t0 = time.time()
     os.makedirs(os.path.dirname(save_txt_path), exist_ok=True)
     input_img_num = 0
@@ -99,7 +99,6 @@ def detect(save_img=False):
                     p, s, im0, frame = path, '', im0s, getattr(dataset, 'frame', 0)
 
                 # p = Path(p)  # to Path
-                save_path = str(save_dir / "imgs" / p[len("/dataset/dataset/ssd/gesture/")])  # img.jpg
                 img_h, img_w = im0.shape[:2]
                 s += '%gx%g ' % (img_h, img_w)  # print string
                 gn = torch.tensor(im0.shape)[[1, 0, 1, 0]]  # normalization gain whwh
@@ -131,6 +130,7 @@ def detect(save_img=False):
                             if opt.save_conf:
                                 new_line += " " + "{:.2f}".format(float(conf))
                             new_line += "\n"
+                            print("new_line:{}".format(new_line))
                             fw.write(new_line)
                             fw.flush()
 
@@ -174,13 +174,13 @@ def detect(save_img=False):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', nargs='+', type=str,
-                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416/weights/deploy.best.pt',
+                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/deploy.best.pt',
                         help='model.pt path(s)')
     parser.add_argument('--source', type=str,
                         default='/dataset/dataset/ssd/gesture/jiashicang/resize/txt/test.jsc220713.gt.txt',
                         help='source')  # file/folder, 0 for webcam
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
-    parser.add_argument('--conf-thres', type=float, default=0.25, help='object confidence threshold')
+    parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
     parser.add_argument('--device', default='', help='cuda device, i.e. 0 or 0,1,2,3 or cpu')
     parser.add_argument('--view-img', default=False, help='display results')

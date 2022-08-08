@@ -58,7 +58,9 @@ class Detect(nn.Module):
 
     @staticmethod
     def _make_grid(nx=20, ny=20):
-        yv, xv = torch.meshgrid([torch.arange(ny), torch.arange(nx)])
+        # yv, xv = torch.meshgrid([torch.arange(ny), torch.arange(nx)])
+        yv = torch.arange(ny).reshape(ny,1).repeat(1, nx)
+        xv = torch.arange(nx).reshape(1,nx).repeat(ny, 1)
         return torch.stack((xv, yv), 2).view((1, 1, ny, nx, 2)).float()
 
 
