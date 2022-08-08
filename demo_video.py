@@ -24,7 +24,7 @@ import torch.nn.functional as F
 from gesture_recog.build_model import build_model, get_test_transformer
 from utils.draw_box_kpt_utils import draw_box_and_kpt, show_img, save_img
 from utils.box_and_kpt_utils import xyxy2xywh, get_area
-from utils.class_color_c9 import CLASSES, PALETTE
+from utils.datas.gesture.class_color_c9 import CLASSES, PALETTE
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser(

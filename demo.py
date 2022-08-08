@@ -40,7 +40,7 @@ if __name__ == '__main__':
                         help='test config file path')
     parser.add_argument('--use_recog_model', default=True, type=bool, help='whether use recog model')
     args = parser.parse_args()
-    from utils.class_color_c9 import CLASSES, PALETTE
+    from utils.datas.gesture.class_color_c9 import CLASSES, PALETTE
 
     # 构建检测模型
     gpu_id = int(args.gpu_id)
