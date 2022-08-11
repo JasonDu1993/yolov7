@@ -329,7 +329,8 @@ def train(hyp, opt, device, tb_writer=None):
 
         mloss = torch.zeros(4, device=device)  # mean losses
         if rank != -1:
-            dataloader.sampler.set_epoch(epoch)
+            if isinstance(dataloader.sampler, torch.utils.data.distributed.DistributedSampler):
+                dataloader.sampler.set_epoch(epoch)
         pbar = enumerate(dataloader)
         logger.info(('\n' + '%10s' * 8) % ('Epoch', 'gpu_mem', 'box', 'obj', 'cls', 'total', 'labels', 'img_size'))
         if rank in [-1, 0]:
@@ -563,6 +564,13 @@ if __name__ == '__main__':
         opt.workers = 0
         opt.data = "data/gesture_debug.yaml"
         opt.batch_size = 8
+        opt.exist_ok = True
+        opt.name = "debug"
+        os.environ['RANK'] = '0'
+        os.environ['MASTER_ADDR'] = 'localhost'
+        os.environ['MASTER_PORT'] = '5679'
+        os.environ['WORLD_SIZE'] = '1'
+        opt.local_rank = 0
 
     # Set DDP variables
     opt.world_size = int(os.environ['WORLD_SIZE']) if 'WORLD_SIZE' in os.environ else 1

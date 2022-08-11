@@ -36,7 +36,7 @@ class SigmoidBin(nn.Module):
 
     def __init__(self, bin_count=10, min=0.0, max=1.0, reg_scale = 2.0, use_loss_regression=True, use_fw_regression=True, BCE_weight=1.0, smooth_eps=0.0):
         super(SigmoidBin, self).__init__()
-        
+
         self.bin_count = bin_count
         self.length = bin_count + 1
         self.min = min
@@ -55,9 +55,9 @@ class SigmoidBin(nn.Module):
         self.step = step
         #print(f" start = {start}, end = {end}, step = {step} ")
 
-        bins = torch.range(start, end + 0.0001, step).float() 
-        self.register_buffer('bins', bins) 
-               
+        bins = torch.range(start, end + 0.0001, step).float()
+        self.register_buffer('bins', bins)
+
 
         self.cp = 1.0 - 0.5 * smooth_eps
         self.cn = 0.5 * smooth_eps
@@ -96,13 +96,13 @@ class SigmoidBin(nn.Module):
 
         diff_bin_target = torch.abs(target[..., None] - self.bins)
         _, bin_idx = torch.min(diff_bin_target, dim=-1)
-    
+
         bin_bias = self.bins[bin_idx]
         bin_bias.requires_grad = False
         result = pred_reg + bin_bias
 
         target_bins = torch.full_like(pred_bin, self.cn, device=device)  # targets
-        n = pred.shape[0] 
+        n = pred.shape[0]
         target_bins[range(n), bin_idx] = self.cp
 
         loss_bin = self.BCEbins(pred_bin, target_bins) # BCE
@@ -175,10 +175,10 @@ class QFocalLoss(nn.Module):
 
 class RankSort(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, logits, targets, delta_RS=0.50, eps=1e-10): 
+    def forward(ctx, logits, targets, delta_RS=0.50, eps=1e-10):
 
         classification_grads=torch.zeros(logits.shape).cuda()
-        
+
         #Filter fg logits
         fg_labels = (targets > 0.)
         fg_logits = logits[fg_labels]
@@ -189,19 +189,19 @@ class RankSort(torch.autograd.Function):
         #since changing its score does not have an effect on precision
         threshold_logit = torch.min(fg_logits)-delta_RS
         relevant_bg_labels=((targets==0) & (logits>=threshold_logit))
-        
-        relevant_bg_logits = logits[relevant_bg_labels] 
+
+        relevant_bg_logits = logits[relevant_bg_labels]
         relevant_bg_grad=torch.zeros(len(relevant_bg_logits)).cuda()
         sorting_error=torch.zeros(fg_num).cuda()
         ranking_error=torch.zeros(fg_num).cuda()
         fg_grad=torch.zeros(fg_num).cuda()
-        
+
         #sort the fg logits
         order=torch.argsort(fg_logits)
         #Loops over each positive following the order
         for ii in order:
             # Difference Transforms (x_ij)
-            fg_relations=fg_logits-fg_logits[ii] 
+            fg_relations=fg_logits-fg_logits[ii]
             bg_relations=relevant_bg_logits-fg_logits[ii]
 
             if delta_RS > 0:
@@ -217,14 +217,14 @@ class RankSort(torch.autograd.Function):
 
             # Rank of ii among all examples
             rank=rank_pos+FP_num
-                            
+
             # Ranking error of example ii. target_ranking_error is always 0. (Eq. 7)
-            ranking_error[ii]=FP_num/rank      
+            ranking_error[ii]=FP_num/rank
 
             # Current sorting error of example ii. (Eq. 7)
             current_sorting_error = torch.sum(fg_relations*(1-fg_targets))/rank_pos
 
-            #Find examples in the target sorted order for example ii         
+            #Find examples in the target sorted order for example ii
             iou_relations = (fg_targets >= fg_targets[ii])
             target_sorted_order = iou_relations * fg_relations
 
@@ -232,13 +232,13 @@ class RankSort(torch.autograd.Function):
             rank_pos_target = torch.sum(target_sorted_order)
 
             #Compute target sorting error. (Eq. 8)
-            #Since target ranking error is 0, this is also total target error 
+            #Since target ranking error is 0, this is also total target error
             target_sorting_error= torch.sum(target_sorted_order*(1-fg_targets))/rank_pos_target
 
             #Compute sorting error on example ii
             sorting_error[ii] = current_sorting_error - target_sorting_error
-  
-            #Identity Update for Ranking Error 
+
+            #Identity Update for Ranking Error
             if FP_num > eps:
                 #For ii the update is the ranking error
                 fg_grad[ii] -= ranking_error[ii]
@@ -249,17 +249,17 @@ class RankSort(torch.autograd.Function):
             #These are the ones with smaller IoU but larger logits
             missorted_examples = (~ iou_relations) * fg_relations
 
-            #Denominotor of sorting pmf 
+            #Denominotor of sorting pmf
             sorting_pmf_denom = torch.sum(missorted_examples)
 
-            #Identity Update for Sorting Error 
+            #Identity Update for Sorting Error
             if sorting_pmf_denom > eps:
                 #For ii the update is the sorting error
                 fg_grad[ii] -= sorting_error[ii]
                 #For positives, distribute error via sorting pmf (i.e. missorted_examples/sorting_pmf_denom)
                 fg_grad += (missorted_examples*(sorting_error[ii]/sorting_pmf_denom))
 
-        #Normalize gradients by number of positives 
+        #Normalize gradients by number of positives
         classification_grads[fg_labels]= (fg_grad/fg_num)
         classification_grads[relevant_bg_labels]= (relevant_bg_grad/fg_num)
 
@@ -274,9 +274,9 @@ class RankSort(torch.autograd.Function):
 
 class aLRPLoss(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, logits, targets, regression_losses, delta=1., eps=1e-5): 
+    def forward(ctx, logits, targets, regression_losses, delta=1., eps=1e-5):
         classification_grads=torch.zeros(logits.shape).cuda()
-        
+
         #Filter fg logits
         fg_labels = (targets == 1)
         fg_logits = logits[fg_labels]
@@ -288,19 +288,19 @@ class aLRPLoss(torch.autograd.Function):
 
         #Get valid bg logits
         relevant_bg_labels=((targets==0)&(logits>=threshold_logit))
-        relevant_bg_logits=logits[relevant_bg_labels] 
+        relevant_bg_logits=logits[relevant_bg_labels]
         relevant_bg_grad=torch.zeros(len(relevant_bg_logits)).cuda()
         rank=torch.zeros(fg_num).cuda()
         prec=torch.zeros(fg_num).cuda()
         fg_grad=torch.zeros(fg_num).cuda()
-        
-        max_prec=0                                           
+
+        max_prec=0
         #sort the fg logits
         order=torch.argsort(fg_logits)
         #Loops over each positive following the order
         for ii in order:
             #x_ij s as score differences with fgs
-            fg_relations=fg_logits-fg_logits[ii] 
+            fg_relations=fg_logits-fg_logits[ii]
             #Apply piecewise linear function and determine relations with fgs
             fg_relations=torch.clamp(fg_relations/(2*delta)+0.5,min=0,max=1)
             #Discard i=j in the summation in rank_pos
@@ -316,21 +316,21 @@ class aLRPLoss(torch.autograd.Function):
             FP_num=torch.sum(bg_relations)
             #Store the total since it is normalizer also for aLRP Regression error
             rank[ii]=rank_pos+FP_num
-                            
-            #Compute precision for this example to compute classification loss 
-            prec[ii]=rank_pos/rank[ii]                
+
+            #Compute precision for this example to compute classification loss
+            prec[ii]=rank_pos/rank[ii]
             #For stability, set eps to a infinitesmall value (e.g. 1e-6), then compute grads
-            if FP_num > eps:   
+            if FP_num > eps:
                 fg_grad[ii] = -(torch.sum(fg_relations*regression_losses)+FP_num)/rank[ii]
-                relevant_bg_grad += (bg_relations*(-fg_grad[ii]/FP_num))   
-                    
+                relevant_bg_grad += (bg_relations*(-fg_grad[ii]/FP_num))
+
         #aLRP with grad formulation fg gradient
         classification_grads[fg_labels]= fg_grad
         #aLRP with grad formulation bg gradient
-        classification_grads[relevant_bg_labels]= relevant_bg_grad 
- 
+        classification_grads[relevant_bg_labels]= relevant_bg_grad
+
         classification_grads /= (fg_num)
-    
+
         cls_loss=1-prec.mean()
         ctx.save_for_backward(classification_grads)
 
@@ -340,13 +340,13 @@ class aLRPLoss(torch.autograd.Function):
     def backward(ctx, out_grad1, out_grad2, out_grad3):
         g1, =ctx.saved_tensors
         return g1*out_grad1, None, None, None, None
-    
-    
+
+
 class APLoss(torch.autograd.Function):
     @staticmethod
-    def forward(ctx, logits, targets, delta=1.): 
+    def forward(ctx, logits, targets, delta=1.):
         classification_grads=torch.zeros(logits.shape).cuda()
-        
+
         #Filter fg logits
         fg_labels = (targets == 1)
         fg_logits = logits[fg_labels]
@@ -358,19 +358,19 @@ class APLoss(torch.autograd.Function):
 
         #Get valid bg logits
         relevant_bg_labels=((targets==0)&(logits>=threshold_logit))
-        relevant_bg_logits=logits[relevant_bg_labels] 
+        relevant_bg_logits=logits[relevant_bg_labels]
         relevant_bg_grad=torch.zeros(len(relevant_bg_logits)).cuda()
         rank=torch.zeros(fg_num).cuda()
         prec=torch.zeros(fg_num).cuda()
         fg_grad=torch.zeros(fg_num).cuda()
-        
-        max_prec=0                                           
+
+        max_prec=0
         #sort the fg logits
         order=torch.argsort(fg_logits)
         #Loops over each positive following the order
         for ii in order:
             #x_ij s as score differences with fgs
-            fg_relations=fg_logits-fg_logits[ii] 
+            fg_relations=fg_logits-fg_logits[ii]
             #Apply piecewise linear function and determine relations with fgs
             fg_relations=torch.clamp(fg_relations/(2*delta)+0.5,min=0,max=1)
             #Discard i=j in the summation in rank_pos
@@ -386,28 +386,28 @@ class APLoss(torch.autograd.Function):
             FP_num=torch.sum(bg_relations)
             #Store the total since it is normalizer also for aLRP Regression error
             rank[ii]=rank_pos+FP_num
-                            
-            #Compute precision for this example 
+
+            #Compute precision for this example
             current_prec=rank_pos/rank[ii]
-            
+
             #Compute interpolated AP and store gradients for relevant bg examples
             if (max_prec<=current_prec):
                 max_prec=current_prec
                 relevant_bg_grad += (bg_relations/rank[ii])
             else:
                 relevant_bg_grad += (bg_relations/rank[ii])*(((1-max_prec)/(1-current_prec)))
-            
+
             #Store fg gradients
             fg_grad[ii]=-(1-max_prec)
-            prec[ii]=max_prec 
+            prec[ii]=max_prec
 
         #aLRP with grad formulation fg gradient
         classification_grads[fg_labels]= fg_grad
         #aLRP with grad formulation bg gradient
-        classification_grads[relevant_bg_labels]= relevant_bg_grad 
- 
+        classification_grads[relevant_bg_labels]= relevant_bg_grad
+
         classification_grads /= fg_num
-    
+
         cls_loss=1-prec.mean()
         ctx.save_for_backward(classification_grads)
 
@@ -583,25 +583,25 @@ class ComputeLossOTA:
         device = targets.device
         lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
-        pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
-    
+        pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p]
+
 
         # Losses
-        for i, pi in enumerate(p):  # layer index, layer predictions
-            b, a, gj, gi = bs[i], as_[i], gjs[i], gis[i]  # image, anchor, gridy, gridx
+        for i, pi in enumerate(p):  # layer index, layer predictions pi shape: [b, na, fea_h, fea_w, 6=(4+1=1)]
+            b, a, gj, gi = bs[i], as_[i], gjs[i], gis[i]  # image, anchor, gridy(gj), gridx(gi)
             tobj = torch.zeros_like(pi[..., 0], device=device)  # target obj
 
             n = b.shape[0]  # number of targets
             if n:
-                ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets
+                ps = pi[b, a, gj, gi]  # prediction subset corresponding to targets ps shape: [n, 6]
 
                 # Regression
-                grid = torch.stack([gi, gj], dim=1)
+                grid = torch.stack([gi, gj], dim=1)  # shape: [n, 2]
                 pxy = ps[:, :2].sigmoid() * 2. - 0.5
                 #pxy = ps[:, :2].sigmoid() * 3. - 1.
                 pwh = (ps[:, 2:4].sigmoid() * 2) ** 2 * anchors[i]
-                pbox = torch.cat((pxy, pwh), 1)  # predicted box
-                selected_tbox = targets[i][:, 2:6] * pre_gen_gains[i]
+                pbox = torch.cat((pxy, pwh), 1)  # predicted box shape: [n, 4]
+                selected_tbox = targets[i][:, 2:6] * pre_gen_gains[i]  # 将gt框归一化坐标变换到对应特征尺度下的坐标 shape: [n, 4]
                 selected_tbox[:, :2] -= grid
                 iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 lbox += (1.0 - iou).mean()  # iou loss
@@ -636,9 +636,10 @@ class ComputeLossOTA:
         return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
 
     def build_targets(self, p, targets, imgs):
-        
+        # indices: list[tuple(tensor)], the list len is nl, the tuple is image_idx(tensor shape[ng,] ng表示使用offset修改之后之后新的gt框个数), anchor_idx, grid_y(gj), grid_x(gi)
+        # anch: list[tensor], the list len is nl, the tensor shape [ng, 2], 2 represent the anchor_w, anchor_h
         #indices, anch = self.find_positive(p, targets)
-        indices, anch = self.find_3_positive(p, targets)
+        indices, anch = self.find_3_positive(p, targets)  # targets:shape [nt, 6], 6=[img_idx, cls_idx, cx, cy, w, h]
         #indices, anch = self.find_4_positive(p, targets)
         #indices, anch = self.find_5_positive(p, targets)
         #indices, anch = self.find_9_positive(p, targets)
@@ -649,18 +650,18 @@ class ComputeLossOTA:
         matching_gis = [[] for pp in p]
         matching_targets = [[] for pp in p]
         matching_anchs = [[] for pp in p]
-        
-        nl = len(p)    
-    
+
+        nl = len(p)
+
         for batch_idx in range(p[0].shape[0]):
-        
+
             b_idx = targets[:, 0]==batch_idx
             this_target = targets[b_idx]
             if this_target.shape[0] == 0:
                 continue
-                
-            txywh = this_target[:, 2:6] * imgs[batch_idx].shape[1]
-            txyxy = xywh2xyxy(txywh)
+
+            txywh = this_target[:, 2:6] * imgs[batch_idx].shape[1]  # 使用将归一化坐标变换到图片输入尺寸范围内  shape [nt, 4]
+            txyxy = xywh2xyxy(txywh)  # 将中心点宽高的坐标转换成左上角和右下角shape [nt, 4]
 
             pxyxys = []
             p_cls = []
@@ -671,44 +672,44 @@ class ComputeLossOTA:
             all_gj = []
             all_gi = []
             all_anch = []
-            
-            for i, pi in enumerate(p):
-                
+
+            for i, pi in enumerate(p):  # 三个输出层 pi shape: [b, na, fea_h, fea_w, 6=(4+1=1)]
+
                 b, a, gj, gi = indices[i]
                 idx = (b == batch_idx)
-                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]                
+                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]  # shape [n_dix,]
                 all_b.append(b)
                 all_a.append(a)
                 all_gj.append(gj)
                 all_gi.append(gi)
                 all_anch.append(anch[i][idx])
                 from_which_layer.append(torch.ones(size=(len(b),)) * i)
-                
-                fg_pred = pi[b, a, gj, gi]                
+
+                fg_pred = pi[b, a, gj, gi]  # 找到gt位置处的预测值, shape [n_dix, 6]
                 p_obj.append(fg_pred[:, 4:5])
                 p_cls.append(fg_pred[:, 5:])
-                
-                grid = torch.stack([gi, gj], dim=1)
-                pxy = (fg_pred[:, :2].sigmoid() * 2. - 0.5 + grid) * self.stride[i] #/ 8.
+
+                grid = torch.stack([gi, gj], dim=1)  # shape [n_dix, 2]
+                pxy = (fg_pred[:, :2].sigmoid() * 2. - 0.5 + grid) * self.stride[i] #/ 8.  # 将预测值的坐标变换到模型输入尺寸
                 #pxy = (fg_pred[:, :2].sigmoid() * 3. - 1. + grid) * self.stride[i]
                 pwh = (fg_pred[:, 2:4].sigmoid() * 2) ** 2 * anch[i][idx] * self.stride[i] #/ 8.
                 pxywh = torch.cat([pxy, pwh], dim=-1)
                 pxyxy = xywh2xyxy(pxywh)
                 pxyxys.append(pxyxy)
-            
-            pxyxys = torch.cat(pxyxys, dim=0)
+
+            pxyxys = torch.cat(pxyxys, dim=0)  # shape [n_match, 4], n_match表示该图片三个输出层和gt框匹配的预测结果cat到一起之后的个数
             if pxyxys.shape[0] == 0:
                 continue
-            p_obj = torch.cat(p_obj, dim=0)
-            p_cls = torch.cat(p_cls, dim=0)
-            from_which_layer = torch.cat(from_which_layer, dim=0)
-            all_b = torch.cat(all_b, dim=0)
-            all_a = torch.cat(all_a, dim=0)
-            all_gj = torch.cat(all_gj, dim=0)
-            all_gi = torch.cat(all_gi, dim=0)
-            all_anch = torch.cat(all_anch, dim=0)
-        
-            pair_wise_iou = box_iou(txyxy, pxyxys)
+            p_obj = torch.cat(p_obj, dim=0)  # shape [n_match, 4]
+            p_cls = torch.cat(p_cls, dim=0)  # shape [n_match, 4]
+            from_which_layer = torch.cat(from_which_layer, dim=0)  # shape [n_match, 4]
+            all_b = torch.cat(all_b, dim=0)  # shape [n_match, 4]
+            all_a = torch.cat(all_a, dim=0)  # shape [n_match, 4]
+            all_gj = torch.cat(all_gj, dim=0)  # shape [n_match, 4]
+            all_gi = torch.cat(all_gi, dim=0)  # shape [n_match, 4]
+            all_anch = torch.cat(all_anch, dim=0)  # shape [n_match, 4]
+
+            pair_wise_iou = box_iou(txyxy, pxyxys)  # shape [nt, n_match]
 
             pair_wise_iou_loss = -torch.log(pair_wise_iou + 1e-8)
 
@@ -720,51 +721,51 @@ class ComputeLossOTA:
                 .float()
                 .unsqueeze(1)
                 .repeat(1, pxyxys.shape[0], 1)
-            )
+            )  # shape [nt, n_match, nc]
 
             num_gt = this_target.shape[0]
             cls_preds_ = (
                 p_cls.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
                 * p_obj.unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
-            )
+            )  # shape [nt, n_match, nc]
 
-            y = cls_preds_.sqrt_()
+            y = cls_preds_.sqrt_()  # shape [nt, n_match, nc]
             pair_wise_cls_loss = F.binary_cross_entropy_with_logits(
                torch.log(y/(1-y)) , gt_cls_per_image, reduction="none"
-            ).sum(-1)
+            ).sum(-1)  # shape [nt, n_match]
             del cls_preds_
-        
+
             cost = (
                 pair_wise_cls_loss
                 + 3.0 * pair_wise_iou_loss
-            )
+            )  # shape [nt, n_match]
 
-            matching_matrix = torch.zeros_like(cost)
+            matching_matrix = torch.zeros_like(cost)  # shape [nt, n_match]
 
             for gt_idx in range(num_gt):
                 _, pos_idx = torch.topk(
                     cost[gt_idx], k=dynamic_ks[gt_idx].item(), largest=False
-                )
-                matching_matrix[gt_idx][pos_idx] = 1.0
+                )  # 找到loss中最小的前k个所在位置
+                matching_matrix[gt_idx][pos_idx] = 1.0  # 将对应位置的值赋值为1
 
             del top_k, dynamic_ks
-            anchor_matching_gt = matching_matrix.sum(0)
+            anchor_matching_gt = matching_matrix.sum(0)  # shape [n_match, ]
             if (anchor_matching_gt > 1).sum() > 0:
-                _, cost_argmin = torch.min(cost[:, anchor_matching_gt > 1], dim=0)
+                _, cost_argmin = torch.min(cost[:, anchor_matching_gt > 1], dim=0)  # 对应某个anchor有至少两张图片对应的gt框和他匹配， cost[:, anchor_matching_gt > 1]其shape为 [nt, an2],找到loss最小的那个gt框所在图片的index
                 matching_matrix[:, anchor_matching_gt > 1] *= 0.0
                 matching_matrix[cost_argmin, anchor_matching_gt > 1] = 1.0
-            fg_mask_inboxes = matching_matrix.sum(0) > 0.0
-            matched_gt_inds = matching_matrix[:, fg_mask_inboxes].argmax(0)
-        
-            from_which_layer = from_which_layer[fg_mask_inboxes]
-            all_b = all_b[fg_mask_inboxes]
-            all_a = all_a[fg_mask_inboxes]
-            all_gj = all_gj[fg_mask_inboxes]
-            all_gi = all_gi[fg_mask_inboxes]
-            all_anch = all_anch[fg_mask_inboxes]
-        
-            this_target = this_target[matched_gt_inds]
-        
+            fg_mask_inboxes = matching_matrix.sum(0) > 0.0  # shape [n_match, ]
+            matched_gt_inds = matching_matrix[:, fg_mask_inboxes].argmax(0)  # shape [fg, ]
+
+            from_which_layer = from_which_layer[fg_mask_inboxes]  # shape [fg, ]
+            all_b = all_b[fg_mask_inboxes]  # shape [fg, ]
+            all_a = all_a[fg_mask_inboxes]  # shape [fg, ]
+            all_gj = all_gj[fg_mask_inboxes]  # shape [fg, ]
+            all_gi = all_gi[fg_mask_inboxes]  # shape [fg, ]
+            all_anch = all_anch[fg_mask_inboxes]  # shape [fg, ]
+
+            this_target = this_target[matched_gt_inds]  # shape [fg, 6]
+
             for i in range(nl):
                 layer_idx = from_which_layer == i
                 matching_bs[i].append(all_b[layer_idx])
@@ -790,15 +791,15 @@ class ComputeLossOTA:
                 matching_targets[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
                 matching_anchs[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
 
-        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs           
+        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs
 
     def find_3_positive(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
-        na, nt = self.na, targets.shape[0]  # number of anchors, targets
+        na, nt = self.na, targets.shape[0]  # number of anchors, targets:shape [nt, 6], 6=[img_idx, cls_idx, cx, cy, w, h]
         indices, anch = [], []
-        gain = torch.ones(7, device=targets.device).long()  # normalized to gridspace gain
-        ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # same as .repeat_interleave(nt)
-        targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # append anchor indices
+        gain = torch.ones(7, device=targets.device).long()  # normalized to gridspace gain shape [7, ], 7=[img_idx, cls_idx, cx, cy, w, h, anchor_idx]
+        ai = torch.arange(na, device=targets.device).float().view(na, 1).repeat(1, nt)  # shape[na, nt] same as .repeat_interleave(nt)
+        targets = torch.cat((targets.repeat(na, 1, 1), ai[:, :, None]), 2)  # shape[na, nt, 7], 7=[img_idx, cls_idx, cx, cy, w, h, anchor_idx] append anchor indices
 
         g = 0.5  # bias
         off = torch.tensor([[0, 0],
@@ -807,35 +808,35 @@ class ComputeLossOTA:
                             ], device=targets.device).float() * g  # offsets
 
         for i in range(self.nl):
-            anchors = self.anchors[i]
+            anchors = self.anchors[i]  # shape [na, 2]
             gain[2:6] = torch.tensor(p[i].shape)[[3, 2, 3, 2]]  # xyxy gain
 
             # Match targets to anchors
-            t = targets * gain
+            t = targets * gain  # 将归一化的坐标变换到对应的特征对应的宽高（如52,52）, shape [na, nt, 7]
             if nt:
                 # Matches
-                r = t[:, :, 4:6] / anchors[:, None]  # wh ratio
-                j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # compare
+                r = t[:, :, 4:6] / anchors[:, None]  # wh ratio, 将gt框使用该尺度下的anchor进行归一化, shape [na, nt, 7]
+                j = torch.max(r, 1. / r).max(2)[0] < self.hyp['anchor_t']  # shape [na, nt,], compare, r和1/r找到最大值的意思相当于gt框的宽（或者高）和anchor的宽（或者高）中更长的除以短的，所以其值一定大于1，再求max是找的宽高中比例差距更大的，把和anchor差距较大的gt框过滤掉，只保留在一定范围内的gt框
                 # j = wh_iou(anchors, t[:, 4:6]) > model.hyp['iou_t']  # iou(3,n)=wh_iou(anchors(3,2), gwh(n,2))
-                t = t[j]  # filter
+                t = t[j]  # filter shape [nf, 7], nf表示通过anchor_t过滤之后保留的gt框个数
 
                 # Offsets
-                gxy = t[:, 2:4]  # grid xy
-                gxi = gain[[2, 3]] - gxy  # inverse
-                j, k = ((gxy % 1. < g) & (gxy > 1.)).T
-                l, m = ((gxi % 1. < g) & (gxi > 1.)).T
-                j = torch.stack((torch.ones_like(j), j, k, l, m))
-                t = t.repeat((5, 1, 1))[j]
-                offsets = (torch.zeros_like(gxy)[None] + off[:, None])[j]
+                gxy = t[:, 2:4]  # grid xy shape [nf, 2]
+                gxi = gain[[2, 3]] - gxy  # inverse, shape [nf, 2]找到中心点距离右面和下面的距离
+                j, k = ((gxy % 1. < g) & (gxy > 1.)).T   # 中心点的小数点坐标小于g=0.5并且不是第一个位置则为True，即gxy中坐标是1-1.5范围内,2-2.5范围内, ..., fea_size~fea_size+0.5, 以此内推
+                l, m = ((gxi % 1. < g) & (gxi > 1.)).T  # 中心点的小数点坐标大于g=0.5并且不是最后一个位置则为True，即gxy中坐标是0.5-1范围内,1.5-2范围内, ..., fea_size-1-0.5~fea_size-1-0.5, 以此内推当jklm全都是False表示中心点位于最外面一圈
+                j = torch.stack((torch.ones_like(j), j, k, l, m))  # shape [5, nf], 这里的5:第一个表示没有改变gt框的坐标所有的框都保留，第二个则是x坐标减去bias之后的新的坐标，第三个是y减去bias， 第四个是则是x坐标加上bias，第五个则是y坐标加上bias
+                t = t.repeat((5, 1, 1))[j]  # [ng, 7], ng表示使用offset修改之后之后新的gt框个数
+                offsets = (torch.zeros_like(gxy)[None] + off[:, None])[j]  # [j]之前为[5, nf, 2], 之后为[ng, 2]
             else:
                 t = targets[0]
                 offsets = 0
 
             # Define
             b, c = t[:, :2].long().T  # image, class
-            gxy = t[:, 2:4]  # grid xy
-            gwh = t[:, 4:6]  # grid wh
-            gij = (gxy - offsets).long()
+            gxy = t[:, 2:4]  # grid xy shape [ng, 2]
+            gwh = t[:, 4:6]  # grid wh shape [ng, 2]
+            gij = (gxy - offsets).long()  # 取long之后会向下取整都变成整数了
             gi, gj = gij.T  # grid xy indices
 
             # Append
@@ -844,7 +845,7 @@ class ComputeLossOTA:
             anch.append(anchors[a])  # anchors
 
         return indices, anch
-    
+
 
 class ComputeLossBinOTA:
     # Compute losses
@@ -882,8 +883,8 @@ class ComputeLossBinOTA:
         device = targets.device
         lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         bs, as_, gjs, gis, targets, anchors = self.build_targets(p, targets, imgs)
-        pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p] 
-    
+        pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p]
+
 
         # Losses
         for i, pi in enumerate(p):  # layer index, layer predictions
@@ -900,7 +901,7 @@ class ComputeLossBinOTA:
                 grid = torch.stack([gi, gj], dim=1)
                 selected_tbox = targets[i][:, 2:6] * pre_gen_gains[i]
                 selected_tbox[:, :2] -= grid
-                
+
                 #pxy = ps[:, :2].sigmoid() * 2. - 0.5
                 ##pxy = ps[:, :2].sigmoid() * 3. - 1.
                 #pwh = (ps[:, 2:4].sigmoid() * 2) ** 2 * anchors[i]
@@ -923,9 +924,9 @@ class ComputeLossBinOTA:
 
                 pbox = torch.cat((px.unsqueeze(1), py.unsqueeze(1), pw.unsqueeze(1), ph.unsqueeze(1)), 1).to(device)  # predicted box
 
-                
-                
-                
+
+
+
                 iou = bbox_iou(pbox.T, selected_tbox, x1y1x2y2=False, CIoU=True)  # iou(prediction, target)
                 lbox += (1.0 - iou).mean()  # iou loss
 
@@ -959,7 +960,7 @@ class ComputeLossBinOTA:
         return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
 
     def build_targets(self, p, targets, imgs):
-        
+
         #indices, anch = self.find_positive(p, targets)
         indices, anch = self.find_3_positive(p, targets)
         #indices, anch = self.find_4_positive(p, targets)
@@ -972,16 +973,16 @@ class ComputeLossBinOTA:
         matching_gis = [[] for pp in p]
         matching_targets = [[] for pp in p]
         matching_anchs = [[] for pp in p]
-        
-        nl = len(p)    
-    
+
+        nl = len(p)
+
         for batch_idx in range(p[0].shape[0]):
-        
+
             b_idx = targets[:, 0]==batch_idx
             this_target = targets[b_idx]
             if this_target.shape[0] == 0:
                 continue
-                
+
             txywh = this_target[:, 2:6] * imgs[batch_idx].shape[1]
             txyxy = xywh2xyxy(txywh)
 
@@ -994,35 +995,35 @@ class ComputeLossBinOTA:
             all_gj = []
             all_gi = []
             all_anch = []
-            
+
             for i, pi in enumerate(p):
-                
+
                 obj_idx = self.wh_bin_sigmoid.get_length()*2 + 2
-                
+
                 b, a, gj, gi = indices[i]
                 idx = (b == batch_idx)
-                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]                
+                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]
                 all_b.append(b)
                 all_a.append(a)
                 all_gj.append(gj)
                 all_gi.append(gi)
                 all_anch.append(anch[i][idx])
                 from_which_layer.append(torch.ones(size=(len(b),)) * i)
-                
-                fg_pred = pi[b, a, gj, gi]                
+
+                fg_pred = pi[b, a, gj, gi]
                 p_obj.append(fg_pred[:, obj_idx:(obj_idx+1)])
                 p_cls.append(fg_pred[:, (obj_idx+1):])
-                
+
                 grid = torch.stack([gi, gj], dim=1)
                 pxy = (fg_pred[:, :2].sigmoid() * 2. - 0.5 + grid) * self.stride[i] #/ 8.
                 #pwh = (fg_pred[:, 2:4].sigmoid() * 2) ** 2 * anch[i][idx] * self.stride[i] #/ 8.
                 pw = self.wh_bin_sigmoid.forward(fg_pred[..., 2:(3+self.bin_count)].sigmoid()) * anch[i][idx][:, 0] * self.stride[i]
                 ph = self.wh_bin_sigmoid.forward(fg_pred[..., (3+self.bin_count):obj_idx].sigmoid()) * anch[i][idx][:, 1] * self.stride[i]
-                
+
                 pxywh = torch.cat([pxy, pw.unsqueeze(1), ph.unsqueeze(1)], dim=-1)
                 pxyxy = xywh2xyxy(pxywh)
                 pxyxys.append(pxyxy)
-            
+
             pxyxys = torch.cat(pxyxys, dim=0)
             if pxyxys.shape[0] == 0:
                 continue
@@ -1034,7 +1035,7 @@ class ComputeLossBinOTA:
             all_gj = torch.cat(all_gj, dim=0)
             all_gi = torch.cat(all_gi, dim=0)
             all_anch = torch.cat(all_anch, dim=0)
-        
+
             pair_wise_iou = box_iou(txyxy, pxyxys)
 
             pair_wise_iou_loss = -torch.log(pair_wise_iou + 1e-8)
@@ -1049,7 +1050,7 @@ class ComputeLossBinOTA:
                 .repeat(1, pxyxys.shape[0], 1)
             )
 
-            num_gt = this_target.shape[0]            
+            num_gt = this_target.shape[0]
             cls_preds_ = (
                 p_cls.float().unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
                 * p_obj.unsqueeze(0).repeat(num_gt, 1, 1).sigmoid_()
@@ -1060,7 +1061,7 @@ class ComputeLossBinOTA:
                torch.log(y/(1-y)) , gt_cls_per_image, reduction="none"
             ).sum(-1)
             del cls_preds_
-        
+
             cost = (
                 pair_wise_cls_loss
                 + 3.0 * pair_wise_iou_loss
@@ -1082,16 +1083,16 @@ class ComputeLossBinOTA:
                 matching_matrix[cost_argmin, anchor_matching_gt > 1] = 1.0
             fg_mask_inboxes = matching_matrix.sum(0) > 0.0
             matched_gt_inds = matching_matrix[:, fg_mask_inboxes].argmax(0)
-        
+
             from_which_layer = from_which_layer[fg_mask_inboxes]
             all_b = all_b[fg_mask_inboxes]
             all_a = all_a[fg_mask_inboxes]
             all_gj = all_gj[fg_mask_inboxes]
             all_gi = all_gi[fg_mask_inboxes]
             all_anch = all_anch[fg_mask_inboxes]
-        
+
             this_target = this_target[matched_gt_inds]
-        
+
             for i in range(nl):
                 layer_idx = from_which_layer == i
                 matching_bs[i].append(all_b[layer_idx])
@@ -1117,7 +1118,7 @@ class ComputeLossBinOTA:
                 matching_targets[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
                 matching_anchs[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
 
-        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs       
+        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs
 
     def find_3_positive(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
@@ -1204,9 +1205,9 @@ class ComputeLossAuxOTA:
         lcls, lbox, lobj = torch.zeros(1, device=device), torch.zeros(1, device=device), torch.zeros(1, device=device)
         bs_aux, as_aux_, gjs_aux, gis_aux, targets_aux, anchors_aux = self.build_targets2(p[:self.nl], targets, imgs)
         bs, as_, gjs, gis, targets, anchors = self.build_targets(p[:self.nl], targets, imgs)
-        pre_gen_gains_aux = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p[:self.nl]] 
-        pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p[:self.nl]] 
-    
+        pre_gen_gains_aux = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p[:self.nl]]
+        pre_gen_gains = [torch.tensor(pp.shape, device=device)[[3, 2, 3, 2]] for pp in p[:self.nl]]
+
 
         # Losses
         for i in range(self.nl):  # layer index, layer predictions
@@ -1244,7 +1245,7 @@ class ComputeLossAuxOTA:
                 # Append targets to text file
                 # with open('targets.txt', 'a') as file:
                 #     [file.write('%11.5g ' * 4 % tuple(x) + '\n') for x in torch.cat((txy[i], twh[i]), 1)]
-            
+
             n_aux = b_aux.shape[0]  # number of targets
             if n_aux:
                 ps_aux = pi_aux[b_aux, a_aux, gj_aux, gi_aux]  # prediction subset corresponding to targets
@@ -1285,7 +1286,7 @@ class ComputeLossAuxOTA:
         return loss * bs, torch.cat((lbox, lobj, lcls, loss)).detach()
 
     def build_targets(self, p, targets, imgs):
-        
+
         indices, anch = self.find_3_positive(p, targets)
 
         matching_bs = [[] for pp in p]
@@ -1294,16 +1295,16 @@ class ComputeLossAuxOTA:
         matching_gis = [[] for pp in p]
         matching_targets = [[] for pp in p]
         matching_anchs = [[] for pp in p]
-        
-        nl = len(p)    
-    
+
+        nl = len(p)
+
         for batch_idx in range(p[0].shape[0]):
-        
+
             b_idx = targets[:, 0]==batch_idx
             this_target = targets[b_idx]
             if this_target.shape[0] == 0:
                 continue
-                
+
             txywh = this_target[:, 2:6] * imgs[batch_idx].shape[1]
             txyxy = xywh2xyxy(txywh)
 
@@ -1316,23 +1317,23 @@ class ComputeLossAuxOTA:
             all_gj = []
             all_gi = []
             all_anch = []
-            
+
             for i, pi in enumerate(p):
-                
+
                 b, a, gj, gi = indices[i]
                 idx = (b == batch_idx)
-                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]                
+                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]
                 all_b.append(b)
                 all_a.append(a)
                 all_gj.append(gj)
                 all_gi.append(gi)
                 all_anch.append(anch[i][idx])
                 from_which_layer.append(torch.ones(size=(len(b),)) * i)
-                
-                fg_pred = pi[b, a, gj, gi]                
+
+                fg_pred = pi[b, a, gj, gi]
                 p_obj.append(fg_pred[:, 4:5])
                 p_cls.append(fg_pred[:, 5:])
-                
+
                 grid = torch.stack([gi, gj], dim=1)
                 pxy = (fg_pred[:, :2].sigmoid() * 2. - 0.5 + grid) * self.stride[i] #/ 8.
                 #pxy = (fg_pred[:, :2].sigmoid() * 3. - 1. + grid) * self.stride[i]
@@ -1340,7 +1341,7 @@ class ComputeLossAuxOTA:
                 pxywh = torch.cat([pxy, pwh], dim=-1)
                 pxyxy = xywh2xyxy(pxywh)
                 pxyxys.append(pxyxy)
-            
+
             pxyxys = torch.cat(pxyxys, dim=0)
             if pxyxys.shape[0] == 0:
                 continue
@@ -1352,7 +1353,7 @@ class ComputeLossAuxOTA:
             all_gj = torch.cat(all_gj, dim=0)
             all_gi = torch.cat(all_gi, dim=0)
             all_anch = torch.cat(all_anch, dim=0)
-        
+
             pair_wise_iou = box_iou(txyxy, pxyxys)
 
             pair_wise_iou_loss = -torch.log(pair_wise_iou + 1e-8)
@@ -1378,7 +1379,7 @@ class ComputeLossAuxOTA:
                torch.log(y/(1-y)) , gt_cls_per_image, reduction="none"
             ).sum(-1)
             del cls_preds_
-        
+
             cost = (
                 pair_wise_cls_loss
                 + 3.0 * pair_wise_iou_loss
@@ -1400,16 +1401,16 @@ class ComputeLossAuxOTA:
                 matching_matrix[cost_argmin, anchor_matching_gt > 1] = 1.0
             fg_mask_inboxes = matching_matrix.sum(0) > 0.0
             matched_gt_inds = matching_matrix[:, fg_mask_inboxes].argmax(0)
-        
+
             from_which_layer = from_which_layer[fg_mask_inboxes]
             all_b = all_b[fg_mask_inboxes]
             all_a = all_a[fg_mask_inboxes]
             all_gj = all_gj[fg_mask_inboxes]
             all_gi = all_gi[fg_mask_inboxes]
             all_anch = all_anch[fg_mask_inboxes]
-        
+
             this_target = this_target[matched_gt_inds]
-        
+
             for i in range(nl):
                 layer_idx = from_which_layer == i
                 matching_bs[i].append(all_b[layer_idx])
@@ -1438,7 +1439,7 @@ class ComputeLossAuxOTA:
         return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs
 
     def build_targets2(self, p, targets, imgs):
-        
+
         indices, anch = self.find_5_positive(p, targets)
 
         matching_bs = [[] for pp in p]
@@ -1447,16 +1448,16 @@ class ComputeLossAuxOTA:
         matching_gis = [[] for pp in p]
         matching_targets = [[] for pp in p]
         matching_anchs = [[] for pp in p]
-        
-        nl = len(p)    
-    
+
+        nl = len(p)
+
         for batch_idx in range(p[0].shape[0]):
-        
+
             b_idx = targets[:, 0]==batch_idx
             this_target = targets[b_idx]
             if this_target.shape[0] == 0:
                 continue
-                
+
             txywh = this_target[:, 2:6] * imgs[batch_idx].shape[1]
             txyxy = xywh2xyxy(txywh)
 
@@ -1469,23 +1470,23 @@ class ComputeLossAuxOTA:
             all_gj = []
             all_gi = []
             all_anch = []
-            
+
             for i, pi in enumerate(p):
-                
+
                 b, a, gj, gi = indices[i]
                 idx = (b == batch_idx)
-                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]                
+                b, a, gj, gi = b[idx], a[idx], gj[idx], gi[idx]
                 all_b.append(b)
                 all_a.append(a)
                 all_gj.append(gj)
                 all_gi.append(gi)
                 all_anch.append(anch[i][idx])
                 from_which_layer.append(torch.ones(size=(len(b),)) * i)
-                
-                fg_pred = pi[b, a, gj, gi]                
+
+                fg_pred = pi[b, a, gj, gi]
                 p_obj.append(fg_pred[:, 4:5])
                 p_cls.append(fg_pred[:, 5:])
-                
+
                 grid = torch.stack([gi, gj], dim=1)
                 pxy = (fg_pred[:, :2].sigmoid() * 2. - 0.5 + grid) * self.stride[i] #/ 8.
                 #pxy = (fg_pred[:, :2].sigmoid() * 3. - 1. + grid) * self.stride[i]
@@ -1493,7 +1494,7 @@ class ComputeLossAuxOTA:
                 pxywh = torch.cat([pxy, pwh], dim=-1)
                 pxyxy = xywh2xyxy(pxywh)
                 pxyxys.append(pxyxy)
-            
+
             pxyxys = torch.cat(pxyxys, dim=0)
             if pxyxys.shape[0] == 0:
                 continue
@@ -1505,7 +1506,7 @@ class ComputeLossAuxOTA:
             all_gj = torch.cat(all_gj, dim=0)
             all_gi = torch.cat(all_gi, dim=0)
             all_anch = torch.cat(all_anch, dim=0)
-        
+
             pair_wise_iou = box_iou(txyxy, pxyxys)
 
             pair_wise_iou_loss = -torch.log(pair_wise_iou + 1e-8)
@@ -1531,7 +1532,7 @@ class ComputeLossAuxOTA:
                torch.log(y/(1-y)) , gt_cls_per_image, reduction="none"
             ).sum(-1)
             del cls_preds_
-        
+
             cost = (
                 pair_wise_cls_loss
                 + 3.0 * pair_wise_iou_loss
@@ -1553,16 +1554,16 @@ class ComputeLossAuxOTA:
                 matching_matrix[cost_argmin, anchor_matching_gt > 1] = 1.0
             fg_mask_inboxes = matching_matrix.sum(0) > 0.0
             matched_gt_inds = matching_matrix[:, fg_mask_inboxes].argmax(0)
-        
+
             from_which_layer = from_which_layer[fg_mask_inboxes]
             all_b = all_b[fg_mask_inboxes]
             all_a = all_a[fg_mask_inboxes]
             all_gj = all_gj[fg_mask_inboxes]
             all_gi = all_gi[fg_mask_inboxes]
             all_anch = all_anch[fg_mask_inboxes]
-        
+
             this_target = this_target[matched_gt_inds]
-        
+
             for i in range(nl):
                 layer_idx = from_which_layer == i
                 matching_bs[i].append(all_b[layer_idx])
@@ -1588,7 +1589,7 @@ class ComputeLossAuxOTA:
                 matching_targets[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
                 matching_anchs[i] = torch.tensor([], device='cuda:0', dtype=torch.int64)
 
-        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs              
+        return matching_bs, matching_as, matching_gjs, matching_gis, matching_targets, matching_anchs
 
     def find_5_positive(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)
@@ -1641,7 +1642,7 @@ class ComputeLossAuxOTA:
             indices.append((b, a, gj.clamp_(0, gain[3] - 1), gi.clamp_(0, gain[2] - 1)))  # image, anchor, grid indices
             anch.append(anchors[a])  # anchors
 
-        return indices, anch                 
+        return indices, anch
 
     def find_3_positive(self, p, targets):
         # Build targets for compute_loss(), input targets(image,class,x,y,w,h)

@@ -86,7 +86,7 @@ def yolov7_tiny_reparameterization():
     """
     device = select_device('0', batch_size=1)
     # model trained by cfg/training/*.yaml
-    weight_path = "/zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_jsc/weights/best.pt"
+    weight_path = "/zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_gray_fl/weights/best.pt"
     modef_config = "cfg/deploy/yolov7-tiny.yaml"
     save_path_sp = os.path.split(weight_path)
     save_path = os.path.join(save_path_sp[0], "deploy." + save_path_sp[1])

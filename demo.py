@@ -25,7 +25,7 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='yolov7 test (and eval) a model')
     parser.add_argument('--det_ckp',
-                        default="/zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_jsc/weights/deploy.best.pt",
+                        default="/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/deploy.best.pt",
                         help='test config file path')
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
@@ -67,7 +67,8 @@ if __name__ == '__main__':
     # root = "/dataset/dataset/ssd/gesture/zp220712/imgs"
     root = "imgs"
     img_paths = [os.path.join(root, name) for name in os.listdir(root)]
-    # img_paths = ["imgs/demo.jpg"]
+    # img_paths = ["/dataset/dataset/ssd/gesture/leapGestRecog/imgs/00/08_palm_moved/frame_00_08_0009.png"]
+    # img_paths = ["imgs/ir3.png"]
     print(img_paths)
 
     save_root = "./a/b"

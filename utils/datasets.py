@@ -31,6 +31,9 @@ from collections import defaultdict
 from utils.general import check_requirements, xyxy2xywh, xywh2xyxy, xywhn2xyxy, xyn2xy, segment2box, segments2boxes, \
     resample_segments, clean_str
 from utils.torch_utils import torch_distributed_zero_first
+from utils.distributed_sampler import DistributedSampler
+from utils.concat_batch_sampler import ConcatBatchSampler
+from utils.concat_dataset import ConcatDataset
 
 # Parameters
 help_url = 'https://github.com/ultralytics/yolov5/wiki/Train-Custom-Data'
@@ -64,32 +67,98 @@ def exif_size(img):
     return s
 
 
-def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=False, cache=False, pad=0.0, rect=False,
+# def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=False, cache=False, pad=0.0, rect=False,
+#                       rank=-1, world_size=1, workers=8, image_weights=False, quad=False, prefix=''):
+#     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
+#     with torch_distributed_zero_first(rank):
+#         dataset = LoadImagesAndLabels(path, imgsz, batch_size,
+#                                       augment=augment,  # augment images
+#                                       hyp=hyp,  # augmentation hyperparameters
+#                                       rect=rect,  # rectangular training
+#                                       cache_images=cache,
+#                                       single_cls=opt.single_cls,
+#                                       stride=int(stride),
+#                                       pad=pad,
+#                                       image_weights=image_weights,
+#                                       prefix=prefix)
+#
+#     batch_size = min(batch_size, len(dataset))
+#     nw = min([os.cpu_count() // world_size, batch_size if batch_size > 1 else 0, workers])  # number of workers
+#     sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
+#     loader = torch.utils.data.DataLoader if image_weights else InfiniteDataLoader
+#     # Use torch.utils.data.DataLoader() if dataset.properties will update during training else InfiniteDataLoader()
+#     dataloader = loader(dataset,
+#                         batch_size=batch_size,
+#                         num_workers=nw,
+#                         sampler=sampler,
+#                         pin_memory=True,
+#                         collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn)
+#     return dataloader, dataset
+
+
+def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=False, cache=False,
+                      pad=0.0, rect=False,
                       rank=-1, world_size=1, workers=8, image_weights=False, quad=False, prefix=''):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
-        dataset = LoadImagesAndLabels(path, imgsz, batch_size,
-                                      augment=augment,  # augment images
-                                      hyp=hyp,  # augmentation hyperparameters
-                                      rect=rect,  # rectangular training
-                                      cache_images=cache,
-                                      single_cls=opt.single_cls,
-                                      stride=int(stride),
-                                      pad=pad,
-                                      image_weights=image_weights,
-                                      prefix=prefix)
+        if isinstance(path, list):
+            datasets = []
+            samplers = []
+            batch_sizes = compute_batch_size(batch_size, path)
+            for i, data_path in enumerate(path):
+                dataset_i = LoadImagesAndLabels(data_path, imgsz, batch_sizes[i],
+                                                augment=augment,  # augment images
+                                                hyp=hyp,  # augmentation hyperparameters
+                                                rect=rect,  # rectangular training
+                                                cache_images=cache,
+                                                single_cls=opt.single_cls,
+                                                stride=int(stride),
+                                                pad=pad,
+                                                image_weights=image_weights,
+                                                prefix=prefix)
+                sampler_i = torch.utils.data.distributed.DistributedSampler(dataset_i) if rank != -1 else None
+                batch_sizes[i] = min(batch_sizes[i], len(dataset_i))
+                datasets.append(dataset_i)
+                samplers.append(sampler_i)
+            batch_size = sum(batch_sizes)
+            dataset = ConcatDataset(datasets)
+            dataset_sizes = [len(d) for d in datasets]
+            if rank != -1:
+                sampler = None
+                batch_sampler = ConcatBatchSampler(samplers, batch_sizes, dataset_sizes)
+            else:
+                sampler = None
+                batch_sampler = None
+        else:
+            dataset = LoadImagesAndLabels(path, imgsz, batch_size,
+                                          augment=augment,  # augment images
+                                          hyp=hyp,  # augmentation hyperparameters
+                                          rect=rect,  # rectangular training
+                                          cache_images=cache,
+                                          single_cls=opt.single_cls,
+                                          stride=int(stride),
+                                          pad=pad,
+                                          image_weights=image_weights,
+                                          prefix=prefix)
+            sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
+            batch_sampler = None
 
-    batch_size = min(batch_size, len(dataset))
     nw = min([os.cpu_count() // world_size, batch_size if batch_size > 1 else 0, workers])  # number of workers
-    sampler = torch.utils.data.distributed.DistributedSampler(dataset) if rank != -1 else None
     loader = torch.utils.data.DataLoader if image_weights else InfiniteDataLoader
     # Use torch.utils.data.DataLoader() if dataset.properties will update during training else InfiniteDataLoader()
-    dataloader = loader(dataset,
-                        batch_size=batch_size,
-                        num_workers=nw,
-                        sampler=sampler,
-                        pin_memory=True,
-                        collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn)
+    if batch_sampler is not None:
+        dataloader = loader(dataset,
+                            num_workers=nw,
+                            batch_sampler=batch_sampler,
+                            pin_memory=True,
+                            collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn)
+    else:
+        dataloader = loader(dataset,
+                            batch_size=batch_size,
+                            num_workers=nw,
+                            sampler=sampler,
+                            pin_memory=True,
+                            collate_fn=LoadImagesAndLabels.collate_fn4 if quad else LoadImagesAndLabels.collate_fn)
     return dataloader, dataset
 
 
@@ -361,6 +430,39 @@ def img2label_paths(img_paths):
     # Define label paths as a function of image paths
     sa, sb = os.sep + 'images' + os.sep, os.sep + 'labels' + os.sep  # /images/, /labels/ substrings
     return ['txt'.join(x.replace(sa, sb, 1).rsplit(x.split('.')[-1], 1)) for x in img_paths]
+
+
+def compute_batch_size(train_bs, paths):
+    """根据数据集的大小计算每个batch内该数据集的样本数
+
+    Args:
+        opt:
+
+    Returns:
+
+    """
+    if isinstance(train_bs, int):
+        train_bs = [train_bs]
+    if len(train_bs) == len(paths):
+        return train_bs
+    assert len(train_bs) == 1, 'Batch size length must be equal to dataset {} vs. {}' \
+        .format(len(train_bs), len(paths))
+    train_bs = train_bs[0]
+    size_list = []
+    for filepath in paths:
+        select_num = -1
+        if ":" in filepath:
+            name_sp = filepath.split(":")
+            select_num = int(name_sp[-1])
+        size = len(open(filepath, 'rb').readlines())
+        if select_num == -1:
+            size_list.append(size)
+        else:
+            size_list.append(min(size, select_num))
+    size_list = [s * 1. / sum(size_list) for s in size_list]
+    batch_size = [max(2, math.ceil(s * train_bs)) for s in size_list]
+    print("The final batch size is {}, {}".format(sum(batch_size), batch_size))
+    return batch_size
 
 
 class LoadImagesAndLabels(Dataset):  # for training/testing
@@ -658,7 +760,11 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 img = np.fliplr(img)
                 if nL:
                     labels[:, 1] = 1 - labels[:, 1]
-
+            # gray
+            if random.random() < hyp['gray']:
+                img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
+                # im_red = img[:, :, self.red_channel]
+                img = np.repeat(img[:, :, None], repeats=3, axis=-1)
         labels_out = torch.zeros((nL, 6))
         if nL:
             labels_out[:, 1:] = torch.from_numpy(labels)
