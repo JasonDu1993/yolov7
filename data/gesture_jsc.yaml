@@ -6,12 +6,14 @@ download:
 # train and val data as 1) directory: path/images/, 2) file: path/images.txt, or 3) list: [path1/images/, path2/images/]
 #train: ./coco/train2017.txt  # 118287 images
 #train: /data/gesture/merge/merge.ges30_cloudwalk.ges30_imgs_1015_1017.hagrid.jsc220713.box.txt  # 118287 images
-train: ["/data/gesture/common/resize/txt/train.ges30_cloudwalk.ges30_imgs_1015_1017.map.box.txt",
-        "/data/gesture/hagrid/resize/txt/train.hagrid.gt.txt",
-        "/data/gesture/jiashicang/resize/txtv2/train.jsc220713.noneg.gt.txt",
-        "/dataset/dataset/ssd/gesture/jiashicang/c9/jsc220718_day.map.box.txt",
-        "/dataset/dataset/ssd/gesture/jiashicang/c9/jsc220715_garage.map.box.txt",
-]  # 282550 images
+train: [["/data/gesture/common/resize/txt/train.ges30_cloudwalk.ges30_imgs_1015_1017.map.box.txt",
+         "/data/gesture/hagrid/resize/txt/train.hagrid.gt.txt",
+         "/data/gesture/jiashicang/resize/txtv2/train.jsc220713.noneg.gt.txt",
+         "/dataset/dataset/ssd/gesture/jiashicang/c9/jsc220718_day.map.box.txt",
+         "/dataset/dataset/ssd/gesture/jiashicang/c9/jsc220715_garage.map.box.txt",
+         "/dataset/dataset/ssd/gesture/jiashicang_ir/c9/train.jiashicang_ir.map.box.2051B.3105.txt",
+         "/dataset/dataset/ssd/gesture/jiashicang_ir_day/c9/train.jiashicang_ir_day.map.box.2051B.3105.txt",
+        ]]  # 359883 images
 val: /data/gesture/jiashicang/resize/txtv2/test.jsc220713.noneg.gt.txt  # 5000 images
 test: /data/gesture/jiashicang/resize/txtv2/test.jsc220713.noneg.gt.txt  # 20288 of 40670 images, submit to https://competitions.codalab.org/competitions/20794
 

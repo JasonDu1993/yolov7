@@ -101,7 +101,7 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=Fa
                       rank=-1, world_size=1, workers=8, image_weights=False, quad=False, prefix=''):
     # Make sure only the first process in DDP process the dataset first, and the following others can use the cache
     with torch_distributed_zero_first(rank):
-        if isinstance(path, list):
+        if isinstance(path, list) and len(path) >=2:
             datasets = []
             samplers = []
             batch_sizes = compute_batch_size(batch_size, path)
@@ -130,6 +130,8 @@ def create_dataloader(path, imgsz, batch_size, stride, opt, hyp=None, augment=Fa
                 sampler = None
                 batch_sampler = None
         else:
+            if isinstance(path, list):
+                path = path[0]
             dataset = LoadImagesAndLabels(path, imgsz, batch_size,
                                           augment=augment,  # augment images
                                           hyp=hyp,  # augmentation hyperparameters
@@ -765,6 +767,10 @@ class LoadImagesAndLabels(Dataset):  # for training/testing
                 img = cv2.cvtColor(img, cv2.COLOR_BGR2GRAY)
                 # im_red = img[:, :, self.red_channel]
                 img = np.repeat(img[:, :, None], repeats=3, axis=-1)
+            # infrared
+            if random.random() < hyp['infrared']:
+                im_red = img[:, :, 2]
+                img = np.repeat(im_red[:, :, None], repeats=3, axis=-1)
         labels_out = torch.zeros((nL, 6))
         if nL:
             labels_out[:, 1:] = torch.from_numpy(labels)

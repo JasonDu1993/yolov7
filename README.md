@@ -191,3 +191,11 @@ Yolov7-mask & YOLOv7-pose
 * [https://github.com/TexasInstruments/edgeai-yolov5/tree/yolo-pose](https://github.com/TexasInstruments/edgeai-yolov5/tree/yolo-pose)
 
 </details>
+
+
+## 转换成onnx
+
+```
+python models/export.py --weights /zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_irlight/weights/deploy.best.pt --save_onnx_path /zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_irlight/weights/dgesture_det.fordpn.v1.0.0.20220825.onnx
+python models/run_onnx.py
+```

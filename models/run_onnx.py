@@ -79,9 +79,8 @@ def run_onnx(onnx_path, input_shape):
         # Apply NMS
         conf_thres = 0.1
         iou_thres = 0.45
-        pred
-        pred = non_max_suppression(pred, conf_thres, iou_thres, classes=classes,
-                                   agnostic=opt.agnostic_nms)
+        pred = non_max_suppression(pred, conf_thres, iou_thres, classes=None,
+                                   agnostic=False)
 
 
 
@@ -97,7 +96,7 @@ def run_onnx(onnx_path, input_shape):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--onnx_path', type=str,
-                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/deploy.best.onnx',
+                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_irlight/weights/gesture_det.fordpn.v1.0.0.20220825.onnx',
                         help='weights path')
     parser.add_argument('--input_shape', nargs='+', type=int, default=[3, 416, 416], help='image size')  # c, height, width
     args = parser.parse_args()

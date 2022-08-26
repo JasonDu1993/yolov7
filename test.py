@@ -101,7 +101,7 @@ def test(data,
         img = img.to(device, non_blocking=True)
         img = img.half() if half else img.float()  # uint8 to fp16/32
         img /= 255.0  # 0 - 255 to 0.0 - 1.0
-        targets = targets.to(device)
+        targets = targets.to(device)  # image_idx, cls_idx, cx, cy, w, h(normalized)
         nb, _, height, width = img.shape  # batch size, channels, height, width
 
         with torch.no_grad():
@@ -118,11 +118,11 @@ def test(data,
             targets[:, 2:] *= torch.Tensor([width, height, width, height]).to(device)  # to pixels
             lb = [targets[targets[:, 0] == i, 1:] for i in range(nb)] if save_hybrid else []  # for autolabelling
             t = time_synchronized()
-            out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)
+            out = non_max_suppression(out, conf_thres=conf_thres, iou_thres=iou_thres, labels=lb, multi_label=True)  # out[list[Tensor]]: Tensor shape [num_box, 6], 6 is (xyxy, conf, cls)
             t1 += time_synchronized() - t
 
         # Statistics per image
-        for si, pred in enumerate(out):
+        for si, pred in enumerate(out):  # pred shape [num_box, 6], 6 is (xyxy, conf, cls)
             labels = targets[targets[:, 0] == si, 1:]
             nl = len(labels)
             tcls = labels[:, 0].tolist() if nl else []  # target class
@@ -172,21 +172,21 @@ def test(data,
                                   'score': round(p[4], 5)})
 
             # Assign all predictions as incorrect
-            correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)
+            correct = torch.zeros(pred.shape[0], niou, dtype=torch.bool, device=device)  # shape [num_box, niou]
             if nl:
                 detected = []  # target indices
-                tcls_tensor = labels[:, 0]
+                tcls_tensor = labels[:, 0]  # shape [nt,]
 
                 # target boxes
-                tbox = xywh2xyxy(labels[:, 1:5])
+                tbox = xywh2xyxy(labels[:, 1:5])  # shape [nt, 4]
                 scale_coords(img[si].shape[1:], tbox, shapes[si][0], shapes[si][1])  # native-space labels
                 if plots:
                     confusion_matrix.process_batch(predn, torch.cat((labels[:, 0:1], tbox), 1))
 
                 # Per target class
                 for cls in torch.unique(tcls_tensor):
-                    ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # prediction indices
-                    pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # target indices
+                    ti = (cls == tcls_tensor).nonzero(as_tuple=False).view(-1)  # target indices shape [nt, ]
+                    pi = (cls == pred[:, 5]).nonzero(as_tuple=False).view(-1)  # prediction indices shape [num_box, ]
 
                     # Search for detections
                     if pi.shape[0]:
@@ -195,7 +195,7 @@ def test(data,
 
                         # Append detections
                         detected_set = set()
-                        for j in (ious > iouv[0]).nonzero(as_tuple=False):
+                        for j in (ious > iouv[0]).nonzero(as_tuple=False):  # 大于最小的iou0.5的预测框index
                             d = ti[i[j]]  # detected target
                             if d.item() not in detected_set:
                                 detected_set.add(d.item())

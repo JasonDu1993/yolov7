@@ -25,18 +25,18 @@ if __name__ == '__main__':
     parser = argparse.ArgumentParser(
         description='yolov7 test (and eval) a model')
     parser.add_argument('--det_ckp',
-                        default="/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/deploy.best.pt",
+                        default="/zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_irlight/weights/deploy.best.pt",
                         help='test config file path')
     parser.add_argument('--img-size', type=int, default=416, help='inference size (pixels)')
     parser.add_argument('--conf-thres', type=float, default=0.1, help='object confidence threshold')
     parser.add_argument('--iou-thres', type=float, default=0.45, help='IOU threshold for NMS')
-    parser.add_argument('--recog_cfg', default="gesture_recog/exp_c9_affine_hagrid_heart_jsc/config.py",
+    parser.add_argument('--recog_cfg', default="gesture_recog/exp_c9_irlight/config.py",
                         help='test config file path')
     parser.add_argument('--gpu_id', default=2, type=int, help='test config file path')
-    parser.add_argument('--recog_model', default="gesture_recog.exp_c9_affine_hagrid_heart_jsc.model.Model",
+    parser.add_argument('--recog_model', default="gesture_recog.exp_c9_irlight.model.Model",
                         help='test config file path')
     parser.add_argument('--recog_ckp',
-                        default="/zhoudu/checkpoints/gesture_recog/exp_c9_affine_hagrid_heart_jsc/checkpoint/model-epoch19.weights",
+                        default="/zhoudu/checkpoints/gesture_recog/exp_c9_irlight/checkpoint/model-epoch19.weights",
                         help='test config file path')
     parser.add_argument('--use_recog_model', default=True, type=bool, help='whether use recog model')
     args = parser.parse_args()
@@ -67,8 +67,8 @@ if __name__ == '__main__':
     # root = "/dataset/dataset/ssd/gesture/zp220712/imgs"
     root = "imgs"
     img_paths = [os.path.join(root, name) for name in os.listdir(root)]
-    # img_paths = ["/dataset/dataset/ssd/gesture/leapGestRecog/imgs/00/08_palm_moved/frame_00_08_0009.png"]
-    # img_paths = ["imgs/ir3.png"]
+    # img_paths = ["/dataset/dataset/ssd/gesture/jiashicang_ir/resize/imgs/20220815_ir/2/2338/ir_189.png"]
+    img_paths = ["imgs/demo.jpg"]
     print(img_paths)
 
     save_root = "./a/b"

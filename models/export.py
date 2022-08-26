@@ -36,10 +36,10 @@ def img_preprocess(image, input_shape):
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--weights', type=str,
-                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/deploy.best.pt',
+                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_irlight/weights/deploy.best.pt',
                         help='weights path')
     parser.add_argument('--save_onnx_path', type=str,
-                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_416_jsc/weights/gesture_det.fordpn.onnx',
+                        default='/zhoudu/checkpoints/gesture/yolov7/yolov7_tiny_irlight/weights/gesture_det.fordpn.v1.0.0.20220825.onnx',
                         help='weights path')
     parser.add_argument('--img-size', nargs='+', type=int, default=[416, 416], help='image size')  # height, width
     parser.add_argument('--batch-size', type=int, default=1, help='batch size')
